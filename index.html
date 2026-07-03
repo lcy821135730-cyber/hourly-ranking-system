@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小时排名追求系统 V0.6 — 当前设计</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: #0f0f1a; color: #e0e0e0; padding: 40px; }
+.container { max-width: 1100px; margin: 0 auto; }
+h1 { font-size: 28px; color: #fff; margin-bottom: 4px; }
+.subtitle { color: #888; font-size: 14px; margin-bottom: 30px; }
+.tag { display: inline-block; background: #1e3a5f; color: #6ab0ff; font-size: 11px; padding: 2px 10px; border-radius: 10px; margin-right: 6px; }
+
+.section { background: #1a1a2e; border-radius: 12px; padding: 24px; margin-bottom: 20px; border: 1px solid #2a2a40; }
+.section-title { font-size: 18px; color: #fff; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.section-title .num { background: #2d5f8f; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #fff; flex-shrink: 0; }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+.card { background: #12122a; border-radius: 8px; padding: 16px; border: 1px solid #252540; }
+.card h3 { font-size: 14px; color: #fff; margin-bottom: 8px; }
+.card p { font-size: 13px; color: #aaa; line-height: 1.6; }
+.card .highlight { color: #6ab0ff; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px 12px; background: #1e1e38; color: #aaa; font-weight: 500; border-bottom: 1px solid #2a2a50; }
+td { padding: 8px 12px; border-bottom: 1px solid #1e1e30; color: #ccc; }
+
+.timeline { padding: 20px 0; }
+.timeline-track { display: flex; height: 32px; background: #12122a; border-radius: 16px; overflow: hidden; border: 1px solid #252540; }
+.tl-phase { display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+.tl-phase:nth-child(1) { background: #1a3a5a; color: #6ab0ff; flex: 1; }
+.tl-phase:nth-child(2) { background: #1a3a3a; color: #50c0a0; flex: 2; }
+.tl-phase:nth-child(3) { background: #3a2a1a; color: #f0a040; flex: 1; }
+.tl-phase:nth-child(4) { background: #2a1a3a; color: #c070f0; flex: 1; }
+.tl-labels { display: flex; margin-top: 8px; }
+.tl-labels div { flex: 1; font-size: 12px; color: #888; text-align: center; }
+.tl-labels div b { color: #ccc; display: block; margin-bottom: 2px; }
+
+.highlight-box { background: #1a2a2a; border-left: 3px solid #50c0a0; padding: 12px 16px; border-radius: 0 8px 8px 0; font-size: 13px; color: #b0d0c0; margin-top: 12px; }
+
+.footer { text-align: center; color: #555; font-size: 12px; margin-top: 40px; border-top: 1px solid #1a1a30; padding-top: 20px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>小时排名追求系统</h1>
+<div class="subtitle">
+<span class="tag">核心设计摘要</span>
+<span class="tag">V0.6</span>
+<span class="tag">2026.07.01</span>
+</div>
+
+<div class="section">
+<div class="section-title"><span class="num">1</span>一句话描述</div>
+<div class="card">
+<p style="font-size:16px;line-height:1.8;color:#c8d8e8;">
+让玩家通过 <span class="highlight">在每次登录的30分钟内多打2到3局</span>，获得 <span class="highlight">实时赢钱排名和档位奖励</span>，从而驱动 <span class="highlight">日均局数增量与金币消耗</span>。
+</p>
+</div>
+</div>
+
+<div class="section">
+<div class="section-title"><span class="num">2</span>核心变量定义</div>
+<table>
+<tr><th>变量</th><th>全称</th><th>说明</th></tr>
+<tr><td>P</td><td>玩家累计赢钱</td><td>窗口内玩家累计赢得的金币，触发局从P0开始，每局赢了加进P。排行榜展示的就是P。输的不计。</td></tr>
+<tr><td>T</td><td>玩家本场累计消耗</td><td>窗口内玩家累计消耗的金币。机器人排名调整的依据，不是玩家看到的值。</td></tr>
+<tr><td>R</td><td>机器人基础涨幅</td><td>每个机器人初始有一个随机赢钱基数，每2分钟在这个基数上加一个独立的随机涨幅。R不依赖玩家任何数据，和P、T、C都无关。</td></tr>
+</table>
+</div>
+
+<div class="section">
+<div class="section-title"><span class="num">3</span>基础设定</div>
+<table>
+<tr><th>项目</th><th>设定</th></tr>
+<tr><td>窗口时长</td><td>30分钟，触发式倒计时</td></tr>
+<tr><td>触发条件</td><td>每次登录后赢了第一把牌</td></tr>
+<tr><td>当天多次触发</td><td>该次窗口未拿奖，下次登录赢牌可再次触发</td></tr>
+<tr><td>排行榜展示</td><td>50个机器人+1个玩家，全部按各自的累计赢钱从高到低排列</td></tr>
+<tr><td>机器人初始赢钱</td><td>触发时生成，第1到50名各分配一个随机初始值。第1名最高，第50名最低。之后每次定时刷新时在此基础上独立加减。</td></tr>
+<tr><td>机器人赢钱上限</td><td>不设上限，玩家不打完30分钟就是自己不争气</td></tr>
+<tr><td>玩家保底</td><td>排名最低跌至第50名，不会再低</td></tr>
+<tr><td>奖励档位</td><td>仅前3名</td></tr>
+<tr><td>每日奖励</td><td>金币（按VIP系数）+卡包（按排名）</td></tr>
+<tr><td>长期奖励</td><td>累计第1名次数解锁进化头像框</td></tr>
+</table>
+</div>
+
+<div class="section">
+<div class="section-title"><span class="num">4</span>双刷新机制</div>
+<table>
+<tr><th>对比项</th><th>定时刷新（每2分钟）</th><th>局后刷新（玩家打完一局）</th></tr>
+<tr><td>触发条件</td><td>固定计时器，每2分钟一次，与玩家操作无关</td><td>玩家完成一局牌局结算时触发</td></tr>
+<tr><td>机器人赢钱变化</td><td>50个机器人各自独立变化：40%到60%加R的3%到10%（活跃打牌），15%到30%不变（离线或休息），15%到30%加R的0到2%（观望）。每次刷新状态重新随机分配。R是机器人独立基数，和玩家无关。</td><td>50个机器人同样按上述规则各自独立变化。在此基础上，根据T值额外调整一部分机器人的涨幅。</td></tr>
+<tr><td>涨幅分配的额外调整（基于T）</td><td>无。只按独立随机规则执行。</td><td>根据玩家当前T值，额外将一部分机器人设为涨得少或不涨。T越高，这个比例越高。被选中的机器人涨幅降低，玩家超过他们的机会变大。</td></tr>
+<tr><td>T与涨幅分配的关系</td><td>不影响</td><td>T每达到一个新门槛，涨得少和不涨的机器人占比就提高一个档次。T从0到C乘以2时占比30%，T达到C乘以2时占比45%，T达到C乘以4时占比55%，T达到C乘以6时占比65%。</td></tr>
+<tr><td>离线时</td><td>正常执行，机器人持续变化</td><td>玩家不在线不触发</td></tr>
+</table>
+</div>
+
+<div class="section">
+<div class="section-title"><span class="num">5</span>T门槛与玩家排名区间</div>
+<table>
+<tr><th>玩家T门槛</th><th>预期排名区间</th><th>局后刷新时涨得少和不涨的机器人占比</th><th>说明</th></tr>
+<tr><td>T从0到C乘以2</td><td>第30到45名</td><td>约30%</td><td>起步期，每局超5到8名</td></tr>
+<tr><td>T达到C乘以2</td><td>第20到30名</td><td>约45%</td><td>加速期，每局超10到15名</td></tr>
+<tr><td>T达到C乘以4</td><td>第8到15名</td><td>约55%</td><td>接近奖励区，每局超15到20名</td></tr>
+<tr><td>T达到C乘以5且玩家在前3名</td><td>卡点触发</td><td>第4名单独加R的150%反超</td><td>卡点，玩家被踢出奖励区</td></tr>
+<tr><td>T达到C乘以6</td><td>第1到4名</td><td>约65%</td><td>冲刺期，每局超5到10名但前方差距很小</td></tr>
+</table>
+</div>
+
+<div class="section">
+<div class="section-title"><span class="num">6</span>机器人与玩家的界限</div>
+<table>
+<tr><th>维度</th><th>规则</th></tr>
+<tr><td>机器人赢钱涨跌</td><td>完全独立。50个机器人各有初始值，每2分钟各自加涨。涨幅值由R分配，R是机器人独立基数，不和玩家挂钩。</td></tr>
+<tr><td>T的作用范围</td><td>只影响局后刷新时的额外涨幅调整，不改变机器人的独立涨跌逻辑。T越高，局后刷新时选为涨得少和不涨的机器人越多，玩家超过他们的通道越宽。</td></tr>
+<tr><td>排行榜排序</td><td>所有实体按当前赢钱值排序。玩家和机器人在同一榜单上公平比较。</td></tr>
+<tr><td>卡点</td><td>玩家首次进前3时，第4名在局后刷新中单独加R的150%，独立于T。</td></tr>
+</table>
+</div>
+
+<div class="section">
+<div class="section-title"><span class="num">7</span>卡点规则</div>
+<table>
+<tr><th>触发条件</th><th>操作</th><th>效果</th></tr>
+<tr><td>玩家在局后刷新中首次进入第1到3名</td><td>本次局后刷新中，第4名机器人不按常规涨幅分配执行，改为单独加R的150%。</td><td>玩家被第4名反超，掉回第4名。卡点只触发一次。</td></tr>
+</table>
+</div>
+
+<div class="section">
+<div class="section-title"><span class="num">8</span>机器人四阶段</div>
+<div class="timeline">
+<div class="timeline-track">
+<div class="tl-phase">起步期</div>
+<div class="tl-phase">追逐期</div>
+<div class="tl-phase">卡点</div>
+<div class="tl-phase">冲刺期</div>
+</div>
+<div class="tl-labels">
+<div><b>0到5分钟</b>T低于Cx2</div>
+<div><b>5到15分钟</b>T在Cx2到Cx4之间</div>
+<div><b>15到20分钟</b>T在Cx4到Cx5之间</div>
+<div><b>20到30分钟</b>T达到Cx6以后</div>
+</div>
+</div>
+<table>
+<tr><th>阶段</th><th>玩家定位</th><th>机器人表现</th></tr>
+<tr><td>起步期</td><td>排第30到45名，刚刚触发</td><td>机器人每2分钟按独立随机规则涨跌。局后刷新时30%的机器人涨得少或不涨。</td></tr>
+<tr><td>追逐期</td><td>排第20到30名，消耗加速</td><td>机器人独立涨跌不变。局后刷新时涨得少和不涨的机器人占比提高到45%。</td></tr>
+<tr><td>卡点</td><td>首次进前3名，被第4名反超</td><td>第4名触发单次爆发R的150%。</td></tr>
+<tr><td>冲刺期</td><td>排第1到4名，窗口接近结束</td><td>机器人独立涨跌不变。局后刷新时涨得少和不涨的机器人占比65%。</td></tr>
+</table>
+</div>
+
+<div class="section">
+<div class="section-title"><span class="num">9</span>整体设计总结</div>
+<table>
+<tr><th>模块</th><th>设计</th></tr>
+<tr><td>排名依据</td><td>累计赢钱（玩家真实P），真实数据不造假</td></tr>
+<tr><td>窗口时长</td><td>30分钟</td></tr>
+<tr><td>触发条件</td><td>赢第一把触发，没拿奖可再次触发</td></tr>
+<tr><td>排行榜规模</td><td>50名，玩家从第45名开始</td></tr>
+<tr><td>机器人赢钱涨跌</td><td>独立运行，基于R，不和玩家挂钩</td></tr>
+<tr><td>T的作用</td><td>只影响局后刷新时的涨幅分配，不改变机器人独立涨跌</td></tr>
+<tr><td>定时刷新</td><td>每2分钟，机器人按独立随机规则变化</td></tr>
+<tr><td>局后刷新</td><td>更新P，按T调整部分机器人涨幅，给玩家让出通道</td></tr>
+<tr><td>卡点</td><td>玩家首次进前3时触发，第4名爆发反超</td></tr>
+<tr><td>冲刺</td><td>T达到C乘以6时，涨得少和不涨的机器人占比65%</td></tr>
+<tr><td>机器人上限</td><td>不设上限，玩家不打完30分钟拿不到奖励</td></tr>
+<tr><td>玩家离线</td><td>定时刷新继续跑，排名后退，最多到第50名保底</td></tr>
+<tr><td>奖励</td><td>仅前3名有奖</td></tr>
+</table>
+</div>
+
+<div class="section">
+<div class="section-title"><span class="num">10</span>设计数据依据</div>
+<div class="grid-2">
+<div class="card">
+<h3>日均登录次数</h3>
+<p>全服人均3.6到3.8次/天（event_1000用户登录，近7天数据）</p>
+</div>
+<div class="card">
+<h3>日均局数</h3>
+<p>VIP0未付费用户日均12.63局（CSV近30天数据）</p>
+</div>
+<div class="card">
+<h3>单次登录局数</h3>
+<p>3到4局（12.63除以3.7次登录）</p>
+</div>
+<div class="card">
+<h3>30分钟可打局数</h3>
+<p>6到7局，覆盖正常量加2到3局增量</p>
+</div>
+</div>
+</div>
+
+<div class="footer">
+小时排名追求系统 · V0.6 · 2026.07.01
+</div>
+
+</div>
+</body>
+</html>
